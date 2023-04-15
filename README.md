@@ -11,7 +11,7 @@ https://matrix.dog/gptdj-demo-2.mp4
 ### Set up a Spotify app
 To provide ChatGPT with access to Spotify via OAuth, you have to set up a Spotify app in the Spotify Developer Dashboard and obtain a `client_id` and `client_secret`:
 
-1. Go to Spotify developer's [dashboard] (https://developer.spotify.com/dashboard) and click "Create app".
+1. Go to Spotify developer's [dashboard](https://developer.spotify.com/dashboard) and click "Create app".
 2. Enter an `App name` and `App description`.
 3. For the `Redirect URI`, put `https://chat.openai.com/aip/plugin-id-temporary-value/oauth/callback` as a temporary value.
 
