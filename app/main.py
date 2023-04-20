@@ -1,18 +1,27 @@
-from fastapi import FastAPI, Header
-from fastapi.responses import JSONResponse
+from typing import Annotated
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-import requests
-
-from pydantic import BaseModel
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from models.api import TracksResponse, TrackTitleList, TrackURIList
+import os
 
 from clients.spotify_client import SpotifyClient
 
 
-class PlayList(BaseModel):
-    name: str
-    titles: list[str]
+bearer_scheme = HTTPBearer()
+
+
+def ensure_token_passed(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
+    if credentials.scheme != "Bearer" or not credentials.credentials:
+        raise HTTPException(
+            status_code=401, detail="Invalid or missing access token")
+    return credentials.credentials
+
+
+def get_spotify_client(access_token: str = Depends(ensure_token_passed)):
+    return SpotifyClient(access_token)
 
 
 app = FastAPI()
@@ -35,7 +44,10 @@ async def favicon():
 
 @app.get("/.well-known/ai-plugin.json")
 def read_plugin_config():
-    return FileResponse("static/ai-plugin.json")
+    if os.environ.get('ENV') == 'prod':
+        return FileResponse("static/ai-plugin.json")
+    else:
+        return FileResponse("static/ai-plugin-dev.json")
 
 
 @app.get("/")
@@ -43,33 +55,37 @@ def read_root():
     return {"Hello": "World"}
 
 
-@app.post("/create-playlist")
-def create_playlist(playlist: PlayList, authorization: str = Header(None)):
-    if authorization:
-        access_token = authorization.split(" ")[1]
-    else:
-        return JSONResponse(status_code=403, content={"error": "Authorization header not found"})
+@app.get("/playlists/{playlist_id}/tracks", response_model=TracksResponse)
+def get_tracks_from_playlist(playlist_id: str, spotify: Annotated[str, Depends(get_spotify_client)]):
+    tracks = spotify.get_songs_from_playlist(playlist_id)
 
-    spotify = SpotifyClient(access_token)
+    return tracks
 
-    try:
-        user_id = spotify.get_spotify_user_id(access_token)
-        playlist_id = spotify.create_playlist(user_id, playlist.name)
-    except requests.HTTPError as e:
-        if e.response.status_code in [401, 403]:
-            print(f"Authorization has expired: {e}")
-            # Give ChatGPT explanation and a chance to refresh the token.
-            return JSONResponse(status_code=403, content={"error": "Authorization has expired"})
-        else:
-            raise e
 
-    song_uris = []
-    for title in playlist.titles:
+@app.post("/playlists")
+def create_playlist(name: str, public: str, spotify: Annotated[str, Depends(get_spotify_client)]):
+    user_id = spotify.get_spotify_user_id()
+    playlist_id = spotify.create_playlist(user_id, name, public)
+
+    return {"playlist_id": playlist_id}
+
+
+@app.post("/playlists/{playlist_id}/tracks")
+def add_tracks(playlist_id: str, track_list: TrackTitleList, spotify: Annotated[str, Depends(get_spotify_client)]):
+    tracks_uris = []
+    for title in track_list.titles:
         tracks = spotify.search_track(title, limit=10)
         if len(tracks) > 0:
-            song_uris.append(tracks[0]['uri'])
+            tracks_uris.append(tracks[0]['uri'])
         else:
             print(f'No tracks found for {title}')
 
-    spotify.add_songs_to_playlist(playlist_id, song_uris)
-    return {'playlist_id': playlist_id, 'song_uris': song_uris}
+    spotify.add_songs_to_playlist(playlist_id, tracks_uris)
+    return {'playlist_id': playlist_id, 'song_uris': tracks_uris}
+
+
+# For some reason ChatGPT never does DELETE request, so using POST here.
+@app.post("/playlists/{playlist_id}/tracks/delete")
+def delete_tracks(playlist_id: str, track_uris: TrackURIList, spotify: Annotated[str, Depends(get_spotify_client)]):
+    spotify.remove_songs_from_playlist(playlist_id, track_uris.track_uris)
+    return {'playlist_id': playlist_id, 'removed_track_uris': track_uris.track_uris}

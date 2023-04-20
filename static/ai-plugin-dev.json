@@ -1,13 +1,13 @@
 {
   "schema_version": "v1",
-  "name_for_human": "GPT DJ (local version)",
+  "name_for_human": "GPT DJ (DEV VERSION)",
   "name_for_model": "gpt_dj",
-  "description_for_human": "Create a spotify playlist by describing music you want to listen to.",
-  "description_for_model": "Create a spotify playlist by describing music you want to listen to.",
+  "description_for_human": "Create a spotify playlist, add, remove tracks to it",
+  "description_for_model": "Create a spotify playlist, add, remove tracks to it",
   "auth": {
     "type": "oauth",
     "client_url": "https://accounts.spotify.com/authorize",
-    "scope": "playlist-modify-public",
+    "scope": "playlist-modify-public,playlist-modify-private,playlist-read-private",
     "authorization_url": "https://accounts.spotify.com/api/token",
     "authorization_content_type": "application/x-www-form-urlencoded",
     "verification_tokens": {
@@ -16,10 +16,10 @@
   },
   "api": {
     "type": "openapi",
-    "url": "https://gptdj.matrix.dog/openapi.json",
+    "url": "https://<your_ngrok_subdomain>.ngrok.app/openapi.json",
     "is_user_authenticated": false
   },
-  "logo_url": "https://gptdj.matrix.dog/static/logo.png",
+  "logo_url": "https://<your_ngrok_subdomain>.ngrok.app/static/cat_logo.png",
   "contact_email": "artem.yankov@gmail.com",
-  "legal_info_url": "https://example.com/legal"
+  "legal_info_url": "https://gptdj.matrix.dog/legal"
 }
