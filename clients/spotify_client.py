@@ -1,3 +1,5 @@
+import json
+
 import requests
 
 
@@ -12,7 +14,7 @@ class SpotifyClient:
             'Content-Type': 'application/json'
         }
 
-    def get_spotify_user_id(self):
+    def get_my_user_id(self):
         response = requests.get(
             f'{self.base_url}/me', headers=self._auth_headers())
 
@@ -22,6 +24,30 @@ class SpotifyClient:
         else:
             print(f"Error: {response.status_code}")
             return None
+
+    def get_user_playlists(self, user_id: str):
+        playlists = []
+        offset = 0
+        limit = 50
+        url = f'{self.base_url}/users/{user_id}/playlists?limit={limit}&offset={offset}'
+        content = {"next": url}
+        while len(playlists) < 500 and content['next']:
+            response = requests.get(
+                content['next'], headers=self._auth_headers())
+            response.raise_for_status()
+            content = response.json()
+            for playlist in response.json()['items']:
+                playlists.append(playlist)
+        print(json.dumps(playlists, indent=4))
+        return playlists
+
+    def find_playlist(self, name: str, user_id: str):
+        playlists = self.get_user_playlists(user_id)
+        for playlist in playlists:
+            if playlist['name'] == name:
+                return playlist
+
+        return None
 
     def create_playlist(self, user_id: str, name: str, public: bool):
         data = {

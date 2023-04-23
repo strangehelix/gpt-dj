@@ -1,14 +1,14 @@
+import os
 from typing import Annotated
-from fastapi import FastAPI, HTTPException, Depends
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from models.api import TracksResponse, TrackTitleList, TrackURIList
-import os
 
 from clients.spotify_client import SpotifyClient
-
+from models.api import TracksResponse, TrackTitleList, TrackURIList
 
 bearer_scheme = HTTPBearer()
 
@@ -44,7 +44,7 @@ async def favicon():
 
 @app.get("/.well-known/ai-plugin.json")
 def read_plugin_config():
-    if os.environ.get('ENV') == 'prod':
+    if os.environ.get('GPTDJ_ENV') == 'prod':
         return FileResponse("static/ai-plugin.json")
     else:
         return FileResponse("static/ai-plugin-dev.json")
@@ -62,10 +62,27 @@ def get_tracks_from_playlist(playlist_id: str, spotify: Annotated[str, Depends(g
     return tracks
 
 
+@app.get("/playlist")
+def find_playlist_by_name(name: str, spotify: Annotated[str, Depends(get_spotify_client)]):
+    user_id = spotify.get_my_user_id()
+    playlist = spotify.find_playlist(name, user_id)
+    if playlist:
+        return {'playlist_id': playlist['id']}
+    else:
+        return {'playlist_id': None}
+
+
 @app.post("/playlists")
 def create_playlist(name: str, public: str, spotify: Annotated[str, Depends(get_spotify_client)]):
-    user_id = spotify.get_spotify_user_id()
-    playlist_id = spotify.create_playlist(user_id, name, public)
+    user_id = spotify.get_my_user_id()
+    # Try to find playlist with the same name
+    playlist = spotify.find_playlist(name, user_id)
+    if not playlist:
+        print("Creating playlist")
+        playlist_id = spotify.create_playlist(user_id, name, public)
+    else:
+        print(f"Playlist '{name}' already exists: id={playlist['id']}")
+        playlist_id = playlist['id']
 
     return {"playlist_id": playlist_id}
 
